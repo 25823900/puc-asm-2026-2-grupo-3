@@ -1,0 +1,28 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Cobertura e build
+coverage/
+.coverage
+htmlcov/
+dist/
+
+# Editores e sistema operacional
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
