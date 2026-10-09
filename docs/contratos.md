@@ -12,8 +12,13 @@ Acordos entre as frentes do projeto. Outras pessoas dependem destes formatos, en
 | PostgreSQL | `postgres` | 5432 | não publicada |
 | Redis | `redis` | 6379 | não publicada |
 | Kafka | `kafka` | 9092 | não publicada |
+| Interface do Kafka | `kafka-ui` | 8080 | 8081 |
 | Keycloak | `keycloak` | 8080 | 8080 |
 | Grafana e coletor OTLP | `otel-lgtm` | 3000 (Grafana), 4318 (OTLP HTTP) | 3001 (Grafana) |
+
+As portas do BFF, do Keycloak e da interface do Kafka no host podem ser trocadas pelo arquivo `.env` (ver `.env.example`).
+
+Com o `docker-compose.dev.yml`, as portas "não publicadas" ficam acessíveis no host, só em `127.0.0.1`, com o mesmo número. A exceção é o Kafka, que do host atende em `localhost:29092`.
 
 ## Convenções gerais
 
@@ -184,6 +189,8 @@ Uma única instância, com prefixo de chave por serviço.
 - As rotas com cache devolvem `X-Cache: HIT` ou `X-Cache: MISS`.
 
 ## Variáveis de ambiente
+
+No `docker-compose.yml`, todas já estão definidas com os valores abaixo. Só portas do host e senhas vêm do `.env`.
 
 Comuns aos três componentes:
 

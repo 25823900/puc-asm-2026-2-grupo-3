@@ -1,0 +1,173 @@
+name: encurta
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 60s
+  start_interval: 2s
+
+# O emissor é o endereço público do Keycloak, o mesmo que vem dentro do token.
+# As chaves são buscadas pela rede interna, pelo nome do container.
+x-keycloak-env: &keycloak-env
+  KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/encurta
+  KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/encurta/protocol/openid-connect/certs
+
+services:
+  bff:
+    build: ./bff
+    depends_on:
+      link-service:
+        condition: service_healthy
+      stats-service:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      <<: *keycloak-env
+      PORT: 3000
+      PUBLIC_BASE_URL: http://localhost:${BFF_PORT:-3000}
+      LINK_SERVICE_URL: http://link-service:3010
+      STATS_SERVICE_URL: http://stats-service:8000
+    ports:
+      - "${BFF_PORT:-3000}:3000"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health > /dev/null"]
+
+  link-service:
+    build: ./link-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    environment:
+      <<: *keycloak-env
+      PORT: 3010
+      DATABASE_URL: postgres://links_user:${LINKS_DB_PASSWORD:-links_pass}@postgres:5432/links
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_LINK_CLICKED: link.clicked
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3010/health > /dev/null"]
+
+  stats-service:
+    build: ./stats-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: 8000
+      DATABASE_URL: postgresql://stats_user:${STATS_DB_PASSWORD:-stats_pass}@postgres:5432/stats
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_LINK_CLICKED: link.clicked
+      KAFKA_GROUP_ID: stats-service
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      LINKS_DB_PASSWORD: ${LINKS_DB_PASSWORD:-links_pass}
+      STATS_DB_PASSWORD: ${STATS_DB_PASSWORD:-stats_pass}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      <<: *healthcheck
+      # Via TCP: durante a criação dos databases o servidor só atende pelo socket local.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+
+  kafka:
+    image: apache/kafka:4.3.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # INTERNAL atende os containers. EXTERNAL atende clientes rodando no host
+      # e só fica acessível com o docker-compose.dev.yml.
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9092"]
+
+  kafka-init:
+    image: apache/kafka:4.3.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./infra/kafka:/scripts:ro
+    entrypoint: ["sh", "/scripts/create-topics.sh"]
+    restart: "no"
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: encurta
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "${KAFKA_UI_PORT:-8081}:8080"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health > /dev/null"]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    healthcheck:
+      <<: *healthcheck
+      start_period: 120s
+      # A imagem não tem curl nem wget; a checagem usa o /dev/tcp do bash na porta de gerenciamento.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          read -r status <&3 &&
+          [[ "$$status" == *" 200 "* ]]
+
+volumes:
+  postgres-data:
