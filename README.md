@@ -37,7 +37,7 @@ Cada componente tem as próprias dependências e o próprio Dockerfile. Nenhum i
 
 ## Estado atual
 
-Fase 2: o `docker-compose` sobe toda a infraestrutura e os três componentes, que por enquanto são esqueletos e respondem apenas `GET /health`.
+Fase 2: o `docker-compose` sobe toda a infraestrutura e os três componentes. A lógica de domínio ainda está em implementação; o BFF já expõe `GET /r/{slug}`, que depende da resolução de slugs no link-service.
 
 ## Subindo o ambiente
 
@@ -80,6 +80,7 @@ BFF (porta 3000) e link-service (porta 3010), a partir da pasta do componente:
 ```bash
 npm install
 npm run dev
+npm run lint
 npm test
 ```
 
@@ -90,6 +91,7 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
+ruff check app tests
 pytest
 ```
 
@@ -104,3 +106,19 @@ docker build -t encurta/bff ./bff
 docker build -t encurta/link-service ./link-service
 docker build -t encurta/stats-service ./stats-service
 ```
+
+## CI/CD e produção
+
+O workflow em `.github/workflows/ci.yml` roda lint e testes em pull requests e pushes para `main`, valida o stack com um smoke test e publica as três imagens no GitHub Container Registry após um push bem-sucedido para `main`. As tags publicadas são `latest` e `sha-<commit>`.
+
+Para usar as imagens publicadas, autentique-se no GHCR e configure o namespace da imagem. Em PowerShell:
+
+```powershell
+docker login ghcr.io
+$env:IMAGE_NAMESPACE = "ghcr.io/<proprietario>/encurta"
+$env:IMAGE_TAG = "latest"
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
+```
+
+Troque `<proprietario>` pelo dono do repositório. Para fixar uma versão, use `sha-<commit>` como `IMAGE_TAG`. As variáveis e senhas de infraestrutura continuam vindo do `.env`.

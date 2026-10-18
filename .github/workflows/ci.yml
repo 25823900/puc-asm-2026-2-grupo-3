@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            bff/package-lock.json
+            link-service/package-lock.json
+
+      - name: Lint and test Node services
+        run: |
+          for service in bff link-service; do
+            npm ci --prefix "$service"
+            npm run lint --prefix "$service"
+            npm test --prefix "$service"
+          done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: stats-service/requirements-dev.txt
+
+      - name: Lint and test stats-service
+        working-directory: stats-service
+        run: |
+          python -m pip install -r requirements-dev.txt
+          ruff check app tests
+          pytest
+
+      - name: Build smoke-test images
+        run: |
+          image_namespace="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/encurta"
+          echo "IMAGE_NAMESPACE=$image_namespace" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=ci" >> "$GITHUB_ENV"
+          for service in bff link-service stats-service; do
+            docker build -t "$image_namespace/$service:ci" "./$service"
+          done
+
+      - name: Smoke test production Compose
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up \
+            --detach --wait --wait-timeout 360
+          curl --fail --retry 30 --retry-delay 5 --retry-connrefused \
+            http://127.0.0.1:3000/health
+
+      - name: Tear down smoke stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml down --volumes --remove-orphans
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and publish images
+        run: |
+          image_namespace="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/encurta"
+          image_tag="sha-${GITHUB_SHA::7}"
+          for service in bff link-service stats-service; do
+            docker buildx build --push \
+              --tag "$image_namespace/$service:$image_tag" \
+              --tag "$image_namespace/$service:latest" \
+              "./$service"
+          done

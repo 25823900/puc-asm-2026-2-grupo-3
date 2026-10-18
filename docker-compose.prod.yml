@@ -1,0 +1,12 @@
+services:
+  bff:
+    image: ${IMAGE_NAMESPACE:?Defina IMAGE_NAMESPACE}/bff:${IMAGE_TAG:-latest}
+    build: !reset null
+
+  link-service:
+    image: ${IMAGE_NAMESPACE:?Defina IMAGE_NAMESPACE}/link-service:${IMAGE_TAG:-latest}
+    build: !reset null
+
+  stats-service:
+    image: ${IMAGE_NAMESPACE:?Defina IMAGE_NAMESPACE}/stats-service:${IMAGE_TAG:-latest}
+    build: !reset null
