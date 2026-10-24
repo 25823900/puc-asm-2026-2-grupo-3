@@ -1,10 +1,13 @@
 import express from 'express';
 
+import { createAuth } from './auth.js';
+
 const SERVICE_NAME = 'bff';
 
 export function createApp({
   linkServiceUrl = process.env.LINK_SERVICE_URL ?? 'http://link-service:3010',
   fetchImpl = fetch,
+  auth = createAuth(),
 } = {}) {
   const app = express();
 
@@ -42,6 +45,10 @@ export function createApp({
       });
     }
   });
+
+  // Tudo em /api exige token. /health e /r/:slug ficam públicos.
+  // As rotas de /api/links entram depois deste middleware e podem usar req.user.id.
+  app.use('/api', auth);
 
   return app;
 }
