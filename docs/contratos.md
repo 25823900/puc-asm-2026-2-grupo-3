@@ -44,7 +44,7 @@ Com o `docker-compose.dev.yml`, as portas "não publicadas" ficam acessíveis no
 
 ## Autenticação
 
-- Realm do Keycloak: `encurta`. Clients e usuários de teste são definidos pela pessoa 2.
+- Realm do Keycloak: `encurta`, importado de `infra/keycloak/encurta-realm.json`. Client público `encurta-postman` (login por usuário e senha) e usuários de teste `alice` (`alice123`) e `bob` (`bob123`), com `sub` fixos `f3c1d2e4-0000-4000-8000-000000000001` e `...0002`. A coleção do Postman está em `docs/postman/`.
 - No BFF, as rotas `/api/**` exigem `Authorization: Bearer <JWT>`. As rotas `/r/{slug}` e `/health` são públicas.
 - O BFF valida assinatura (JWKS), emissor e expiração, e repassa o mesmo header `Authorization` ao `link-service`.
 - O `link-service` valida o token da mesma forma e usa a claim `sub` como dono do link (`ownerId`). Um link de outro usuário é tratado como inexistente (`404`).

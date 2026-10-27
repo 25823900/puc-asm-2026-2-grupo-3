@@ -73,6 +73,19 @@ Para desenvolver um componente fora do Docker, o arquivo `docker-compose.dev.yml
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --wait
 ```
 
+## Autenticação
+
+O Keycloak importa o realm `encurta` só na primeira subida. Depois de editar `infra/keycloak/encurta-realm.json`, recrie o container: `docker compose up -d --force-recreate --wait keycloak`.
+
+Para obter um token (usuários `alice`/`alice123` e `bob`/`bob123`):
+
+```bash
+curl -s -d "grant_type=password&client_id=encurta-postman&username=alice&password=alice123" \
+  http://localhost:8080/realms/encurta/protocol/openid-connect/token
+```
+
+A coleção `docs/postman/encurta.postman_collection.json` faz isso e guarda o token em variáveis. Rotas em `/api/**` exigem `Authorization: Bearer <access_token>`.
+
 ## Rodando um componente
 
 BFF (porta 3000) e link-service (porta 3010), a partir da pasta do componente:

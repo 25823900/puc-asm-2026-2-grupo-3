@@ -1,4 +1,36 @@
 {
   "realm": "encurta",
-  "enabled": true
+  "enabled": true,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "encurta-postman",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "id": "f3c1d2e4-0000-4000-8000-000000000001",
+      "username": "alice",
+      "email": "alice@encurta.local",
+      "firstName": "Alice",
+      "lastName": "Teste",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "alice123", "temporary": false }]
+    },
+    {
+      "id": "f3c1d2e4-0000-4000-8000-000000000002",
+      "username": "bob",
+      "email": "bob@encurta.local",
+      "firstName": "Bob",
+      "lastName": "Teste",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "bob123", "temporary": false }]
+    }
+  ]
 }

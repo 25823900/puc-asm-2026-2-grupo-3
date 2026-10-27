@@ -1,0 +1,183 @@
+{
+  "info": {
+    "name": "Encurta",
+    "description": "Obtém tokens no Keycloak (usuários alice e bob) e testa a autenticação das rotas protegidas do BFF.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "keycloakUrl", "value": "http://localhost:8080" },
+    { "key": "tokenAlice", "value": "" },
+    { "key": "tokenBob", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Autenticação",
+      "item": [
+        {
+          "name": "Obter token (alice)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenAlice', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password" },
+                { "key": "client_id", "value": "encurta-postman" },
+                { "key": "username", "value": "alice" },
+                { "key": "password", "value": "alice123" }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakUrl}}/realms/encurta/protocol/openid-connect/token",
+              "host": ["{{keycloakUrl}}"],
+              "path": ["realms", "encurta", "protocol", "openid-connect", "token"]
+            }
+          }
+        },
+        {
+          "name": "Obter token (bob)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenBob', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password" },
+                { "key": "client_id", "value": "encurta-postman" },
+                { "key": "username", "value": "bob" },
+                { "key": "password", "value": "bob123" }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakUrl}}/realms/encurta/protocol/openid-connect/token",
+              "host": ["{{keycloakUrl}}"],
+              "path": ["realms", "encurta", "protocol", "openid-connect", "token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BFF",
+      "item": [
+        {
+          "name": "Health (público)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Rota protegida sem token (espera 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('código UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        },
+        {
+          "name": "Rota protegida com token inválido (espera 401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.request.headers.add({ key: 'Authorization', value: 'Bearer ' + 'invalido' });"]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        },
+        {
+          "name": "Rota protegida com token da alice (passa da autenticação)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('não é 401', () => pm.expect(pm.response.code).to.not.eql(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenAlice}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        },
+        {
+          "name": "Rota protegida com token do bob (passa da autenticação)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('não é 401', () => pm.expect(pm.response.code).to.not.eql(401));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenBob}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        }
+      ]
+    }
+  ]
+}
