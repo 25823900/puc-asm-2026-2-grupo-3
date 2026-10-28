@@ -61,3 +61,29 @@ test('GET /r/:slug returns 503 when the link-service is unavailable', async (t) 
     error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Serviço indisponível' },
   });
 });
+
+test('GET /r/:slug returns 503 when the link-service responds with an error', async (t) => {
+  const baseUrl = await startApp(t, {
+    fetchImpl: async () => new Response(null, { status: 500 }),
+  });
+
+  const response = await fetch(`${baseUrl}/r/aB3xK9q`);
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Serviço indisponível' },
+  });
+});
+
+test('GET /r/:slug returns 503 when the resolved target uses an unsupported protocol', async (t) => {
+  const baseUrl = await startApp(t, {
+    fetchImpl: async () => Response.json({ targetUrl: 'javascript:alert(1)' }),
+  });
+
+  const response = await fetch(`${baseUrl}/r/aB3xK9q`, { redirect: 'manual' });
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Serviço indisponível' },
+  });
+});

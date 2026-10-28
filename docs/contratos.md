@@ -2,6 +2,10 @@
 
 Acordos entre as frentes do projeto. Outras pessoas dependem destes formatos, então qualquer mudança aqui é feita por merge request e avisada ao grupo.
 
+## Estado da implementação
+
+Este documento descreve o contrato-alvo, que inclui rotas ainda planejadas. Atualmente, os três serviços implementam `GET /health`; o BFF também implementa `GET /r/{slug}` e valida tokens nas rotas `/api/**`. As operações de links e estatísticas listadas abaixo ainda não estão implementadas; em particular, o `link-service` ainda não fornece `GET /resolve/{slug}`.
+
 ## Componentes e portas
 
 | Componente | Nome no `docker-compose` | Porta interna | Porta no host |
