@@ -1,9 +1,15 @@
-FROM golang:1.26-alpine AS build
+FROM golang:1.26-alpine AS source
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd ./cmd
 COPY internal ./internal
+
+FROM source AS test
+RUN apk add --no-cache gcc musl-dev
+CMD ["sh", "-c", "test -z \"$(gofmt -l cmd internal)\" && go vet ./... && go test -race -cover ./..."]
+
+FROM source AS build
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /stats-service ./cmd/stats-service
 

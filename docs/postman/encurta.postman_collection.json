@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Encurta",
+    "name": "EncurtadorURL",
     "description": "Obtém tokens no Keycloak (usuários alice e bob) e testa a autenticação das rotas protegidas do BFF.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

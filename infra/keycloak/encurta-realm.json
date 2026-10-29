@@ -4,6 +4,16 @@
   "sslRequired": "none",
   "clients": [
     {
+      "clientId": "encurta-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    },
+    {
       "clientId": "encurta-postman",
       "enabled": true,
       "publicClient": true,

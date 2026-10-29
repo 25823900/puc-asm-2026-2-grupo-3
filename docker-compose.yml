@@ -26,7 +26,7 @@ services:
     environment:
       <<: *keycloak-env
       PORT: 3000
-      PUBLIC_BASE_URL: http://localhost:${BFF_PORT:-3000}
+      PUBLIC_BASE_URL: http://localhost:${FRONTEND_PORT:-5173}
       LINK_SERVICE_URL: http://link-service:3010
       STATS_SERVICE_URL: http://stats-service:8000
     ports:
@@ -34,6 +34,24 @@ services:
     healthcheck:
       <<: *healthcheck
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health > /dev/null"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8080}
+        VITE_KEYCLOAK_REALM: encurta
+        VITE_KEYCLOAK_CLIENT_ID: encurta-frontend
+    depends_on:
+      bff:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-5173}:8080"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health > /dev/null"]
 
   link-service:
     build: ./link-service

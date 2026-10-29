@@ -1,0 +1,20 @@
+services:
+  test-frontend:
+    build:
+      context: ./frontend
+      target: test
+
+  test-bff:
+    build:
+      context: ./bff
+      target: test
+
+  test-link-service:
+    build:
+      context: ./link-service
+      target: test
+
+  test-stats-service:
+    build:
+      context: ./stats-service
+      target: test

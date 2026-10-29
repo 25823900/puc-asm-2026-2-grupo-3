@@ -4,12 +4,13 @@ Acordos entre as frentes do projeto. Outras pessoas dependem destes formatos, en
 
 ## Estado da implementação
 
-As rotas descritas neste documento estão implementadas: o BFF fornece redirecionamento, gestão autenticada de links e acesso às estatísticas; o link-service fornece persistência, isolamento por proprietário, cache e publicação de cliques; o stats-service consome cliques de Kafka e mantém as consultas agregadas. `GET /health` também está disponível nos três serviços.
+As rotas descritas neste documento estão implementadas: o frontend Vue usa OIDC/PKCE e o proxy Nginx; o BFF fornece redirecionamento, gestão autenticada de links e acesso às estatísticas; o link-service fornece persistência, isolamento por proprietário, cache e publicação de cliques; o stats-service em Go consome cliques de Kafka e mantém as consultas agregadas. `GET /health` também está disponível nos três serviços e é encaminhado pelo frontend.
 
 ## Componentes e portas
 
 | Componente | Nome no `docker-compose` | Porta interna | Porta no host |
 |---|---|---|---|
+| Frontend (Nginx) | `frontend` | 8080 | 5173 |
 | BFF | `bff` | 3000 | 3000 |
 | link-service | `link-service` | 3010 | não publicada |
 | stats-service | `stats-service` | 8000 | não publicada |
@@ -18,9 +19,11 @@ As rotas descritas neste documento estão implementadas: o BFF fornece redirecio
 | Kafka | `kafka` | 9092 | não publicada |
 | Interface do Kafka | `kafka-ui` | 8080 | 8081 |
 | Keycloak | `keycloak` | 8080 | 8080 |
-| Grafana e coletor OTLP | `otel-lgtm` | 3000 (Grafana), 4318 (OTLP HTTP) | 3001 (Grafana) |
 
-As portas do BFF, do Keycloak e da interface do Kafka no host podem ser trocadas pelo arquivo `.env` (ver `.env.example`).
+As portas do frontend, do BFF, do Keycloak e da interface do Kafka no host podem ser trocadas pelo arquivo `.env` (ver `.env.example`).
+Se `FRONTEND_PORT` mudar, atualize `redirectUris` e `webOrigins` do client `encurta-frontend` no realm e recrie o Keycloak.
+
+O Nginx encaminha `/api/**`, `/r/**` e `/health` ao BFF, mantendo a mesma origem no navegador. Os serviços internos não são publicados no Compose padrão. O serviço Go tem suporte opcional a OpenTelemetry, mas nenhum coletor/Grafana está incluído no Compose atual.
 
 Com o `docker-compose.dev.yml`, as portas "não publicadas" ficam acessíveis no host, só em `127.0.0.1`, com o mesmo número. A exceção é o Kafka, que do host atende em `localhost:29092`.
 
@@ -48,11 +51,12 @@ Com o `docker-compose.dev.yml`, as portas "não publicadas" ficam acessíveis no
 
 ## Autenticação
 
-- Realm do Keycloak: `encurta`, importado de `infra/keycloak/encurta-realm.json`. Client público `encurta-postman` (login por usuário e senha) e usuários de teste `alice` (`alice123`) e `bob` (`bob123`), com `sub` fixos `f3c1d2e4-0000-4000-8000-000000000001` e `...0002`. A coleção do Postman está em `docs/postman/`.
+- Realm do Keycloak: `encurta`, importado de `infra/keycloak/encurta-realm.json`. O client público `encurta-frontend` usa Authorization Code com PKCE (`S256`) e origem `http://localhost:5173`, sem segredo nem fluxo de senha no browser. O client público `encurta-postman` mantém login por senha apenas para testes. Usuários de demonstração: `alice` (`alice123`) e `bob` (`bob123`), com `sub` fixos `f3c1d2e4-0000-4000-8000-000000000001` e `...0002`. A coleção do Postman está em `docs/postman/`.
 - No BFF, as rotas `/api/**` exigem `Authorization: Bearer <JWT>`. As rotas `/r/{slug}` e `/health` são públicas.
 - O BFF valida assinatura (JWKS), emissor e expiração, e repassa o mesmo header `Authorization` ao `link-service`.
 - O `link-service` valida o token da mesma forma e usa a claim `sub` como dono do link (`ownerId`). Um link de outro usuário é tratado como inexistente (`404`).
 - O `stats-service` não recebe token: não é publicado no host, e o BFF só consulta links que o `link-service` já confirmou pertencerem ao usuário.
+- O frontend mantém o access token em memória e chama somente o BFF via Nginx.
 
 ## API pública (BFF)
 
@@ -78,7 +82,7 @@ Item de `GET /api/links` (o `POST` devolve o mesmo objeto, sem `totalClicks`):
 {
   "id": "7b1f6a0e-3a52-4c1e-9d0b-2f4f6f0c8a11",
   "slug": "aB3xK9q",
-  "shortUrl": "http://localhost:3000/r/aB3xK9q",
+  "shortUrl": "http://localhost:5173/r/aB3xK9q",
   "targetUrl": "https://exemplo.com/uma/pagina/longa",
   "createdAt": "2026-10-08T21:30:00.000Z",
   "totalClicks": 42
@@ -194,21 +198,23 @@ Uma única instância, com prefixo de chave por serviço.
 
 ## Variáveis de ambiente
 
-No `docker-compose.yml`, todas já estão definidas com os valores abaixo. Só portas do host e senhas vêm do `.env`.
+No `docker-compose.yml`, as URLs internas usam a rede Compose. Portas do host e senhas vêm do `.env`.
 
-Comuns aos três componentes:
+Frontend (argumentos de build, sem segredos):
 
 | Variável | Exemplo |
 |---|---|
-| `PORT` | `3000` |
-| `OTEL_SERVICE_NAME` | `bff` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-lgtm:4318` |
+| `VITE_KEYCLOAK_URL` | `http://localhost:8080` |
+| `VITE_KEYCLOAK_REALM` | `encurta` |
+| `VITE_KEYCLOAK_CLIENT_ID` | `encurta-frontend` |
+
+A SPA usa caminhos relativos `/api/**` e `/r/**`, encaminhados ao BFF pelo Nginx. `FRONTEND_PORT` define a porta publicada e a origem de `PUBLIC_BASE_URL`.
 
 BFF:
 
 | Variável | Exemplo |
 |---|---|
-| `PUBLIC_BASE_URL` | `http://localhost:3000` |
+| `PUBLIC_BASE_URL` | `http://localhost:5173` |
 | `LINK_SERVICE_URL` | `http://link-service:3010` |
 | `STATS_SERVICE_URL` | `http://stats-service:8000` |
 | `KEYCLOAK_ISSUER` | `http://localhost:8080/realms/encurta` |
@@ -234,5 +240,11 @@ stats-service:
 | `KAFKA_BROKERS` | `kafka:9092` |
 | `KAFKA_TOPIC_LINK_CLICKED` | `link.clicked` |
 | `KAFKA_GROUP_ID` | `stats-service` |
+
+O serviço Go aceita opcionalmente `OTEL_EXPORTER_OTLP_ENDPOINT` e `OTEL_SERVICE_NAME`. O Compose não configura coletor. Detalhes de migração, agregados e cache versionado estão em [stats-go.md](./stats-go.md).
+
+## Persistência
+
+`infra/postgres/init.sql` cria os databases lógicos `links` e `stats`, com usuários separados, somente na criação do volume. Cada serviço inicializa suas tabelas idempotentemente. O serviço Go preserva `click_events` e cria `link_daily_counts` e `stats_migrations` sem apagar o histórico; não use simultaneamente o consumidor Python antigo, que não atualiza os agregados.
 
 `KEYCLOAK_ISSUER` e `KEYCLOAK_JWKS_URL` são separadas de propósito. O emissor que vem dentro do token é o endereço público do Keycloak (`localhost`), mas dentro da rede do Docker as chaves são buscadas pelo nome do container (`keycloak`).

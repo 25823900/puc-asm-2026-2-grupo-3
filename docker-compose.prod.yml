@@ -1,4 +1,8 @@
 services:
+  frontend:
+    image: ${IMAGE_NAMESPACE:?Defina IMAGE_NAMESPACE}/frontend:${IMAGE_TAG:-latest}
+    build: !reset null
+
   bff:
     image: ${IMAGE_NAMESPACE:?Defina IMAGE_NAMESPACE}/bff:${IMAGE_TAG:-latest}
     build: !reset null

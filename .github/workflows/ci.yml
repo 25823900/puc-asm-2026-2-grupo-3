@@ -21,6 +21,13 @@ jobs:
           cache-dependency-path: |
             bff/package-lock.json
             link-service/package-lock.json
+            frontend/package-lock.json
+
+      - name: Test and build frontend
+        run: |
+          npm ci --prefix frontend
+          npm test --prefix frontend
+          npm run build --prefix frontend
 
       - name: Lint and test Node services
         run: |
@@ -47,7 +54,7 @@ jobs:
           image_namespace="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/encurta"
           echo "IMAGE_NAMESPACE=$image_namespace" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=ci" >> "$GITHUB_ENV"
-          for service in bff link-service stats-service; do
+          for service in frontend bff link-service stats-service; do
             docker build -t "$image_namespace/$service:ci" "./$service"
           done
 
@@ -57,9 +64,12 @@ jobs:
             --detach --wait --wait-timeout 360
           curl --fail --retry 30 --retry-delay 5 --retry-connrefused \
             http://127.0.0.1:3000/health
+          curl --fail --retry 30 --retry-delay 5 --retry-connrefused \
+            http://127.0.0.1:5173/health
+          curl --fail --silent http://127.0.0.1:5173/ | grep -q '<div id="app">'
 
       - name: End-to-end smoke test
-        run: bash scripts/smoke-e2e.sh
+        run: BFF_URL=http://localhost:5173 bash scripts/smoke-e2e.sh
 
       - name: Stats PostgreSQL, Redis and Kafka integration tests
         run: |
@@ -96,7 +106,7 @@ jobs:
         run: |
           image_namespace="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/encurta"
           image_tag="sha-${GITHUB_SHA::7}"
-          for service in bff link-service stats-service; do
+          for service in frontend bff link-service stats-service; do
             docker buildx build --push \
               --tag "$image_namespace/$service:$image_tag" \
               --tag "$image_namespace/$service:latest" \
