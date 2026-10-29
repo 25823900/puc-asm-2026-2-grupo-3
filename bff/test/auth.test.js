@@ -20,9 +20,9 @@ function sign({ key = privateKey, issuer = ISSUER, subject = ALICE, expiresIn = 
   return jwt.sign(key);
 }
 
-async function startApp(t) {
+async function startApp(t, options = {}) {
   const auth = createAuth({ issuer: ISSUER, jwks: publicKey });
-  const server = createApp({ auth }).listen(0);
+  const server = createApp({ ...options, auth }).listen(0);
   t.after(() => server.close());
   await once(server, 'listening');
   return `http://127.0.0.1:${server.address().port}`;
@@ -60,12 +60,13 @@ test('/api rejects invalid tokens with 401', async (t) => {
 });
 
 test('/api accepts a valid token and goes on to the route', async (t) => {
-  const baseUrl = await startApp(t);
+  const baseUrl = await startApp(t, {
+    fetchImpl: async () => Response.json([]),
+  });
 
   const response = await getApi(baseUrl, `Bearer ${await sign()}`);
 
-  // Ainda não há rotas em /api/links: passar da autenticação resulta no 404 do Express.
-  assert.equal(response.status, 404);
+  assert.equal(response.status, 200);
 });
 
 test('requireAuth exposes the sub claim as req.user.id', async () => {

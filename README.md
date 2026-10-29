@@ -37,7 +37,7 @@ Cada componente tem as próprias dependências e o próprio Dockerfile. Nenhum i
 
 ## Estado atual
 
-O `docker-compose` sobe a infraestrutura e os três componentes. No momento, BFF, link-service e stats-service expõem `GET /health`; o BFF também implementa o redirecionamento público `GET /r/{slug}` e protege `/api/**` com autenticação JWT. As rotas de cadastro, listagem, exclusão e estatísticas ainda não estão implementadas, e o link-service ainda não resolve slugs. Os endpoints descritos em [docs/contratos.md](docs/contratos.md) são o contrato-alvo do projeto, não uma lista de funcionalidades já disponíveis.
+O fluxo principal está implementado: o BFF autentica as rotas privadas e oferece criação, listagem, exclusão e estatísticas de links; o link-service persiste links no PostgreSQL, resolve slugs com cache Redis e publica cliques no Kafka; o stats-service consome os eventos e oferece totais e contagens diárias. Os detalhes dos endpoints e os limites conhecidos estão em [docs/contratos.md](docs/contratos.md).
 
 ## Subindo o ambiente
 

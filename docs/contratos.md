@@ -4,7 +4,7 @@ Acordos entre as frentes do projeto. Outras pessoas dependem destes formatos, en
 
 ## Estado da implementação
 
-Este documento descreve o contrato-alvo, que inclui rotas ainda planejadas. Atualmente, os três serviços implementam `GET /health`; o BFF também implementa `GET /r/{slug}` e valida tokens nas rotas `/api/**`. As operações de links e estatísticas listadas abaixo ainda não estão implementadas; em particular, o `link-service` ainda não fornece `GET /resolve/{slug}`.
+As rotas descritas neste documento estão implementadas: o BFF fornece redirecionamento, gestão autenticada de links e acesso às estatísticas; o link-service fornece persistência, isolamento por proprietário, cache e publicação de cliques; o stats-service consome cliques de Kafka e mantém as consultas agregadas. `GET /health` também está disponível nos três serviços.
 
 ## Componentes e portas
 
