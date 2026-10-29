@@ -187,7 +187,7 @@ Uma única instância, com prefixo de chave por serviço.
 | Serviço | Chave | Conteúdo | TTL |
 |---|---|---|---|
 | link-service | `links:slug:{slug}` | Destino do slug | 3600 s |
-| stats-service | `stats:summary:{linkId}` | Resposta de `GET /stats/{linkId}` | 30 s |
+| stats-service | `stats:summary:v2:{linkId}` | Resposta completa de `GET /stats/{linkId}` | 30 s |
 
 - O `link-service` apaga a chave do slug ao excluir o link.
 - As rotas com cache devolvem `X-Cache: HIT` ou `X-Cache: MISS`.

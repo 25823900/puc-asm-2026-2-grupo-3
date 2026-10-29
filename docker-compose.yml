@@ -1,4 +1,4 @@
-name: encurta
+name: puc-asm-grupo3
 
 x-healthcheck: &healthcheck
   interval: 10s
@@ -75,7 +75,7 @@ services:
       KAFKA_GROUP_ID: stats-service
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      test: ["CMD", "/stats-service", "healthcheck"]
 
   postgres:
     image: postgres:17-alpine

@@ -1,17 +1,17 @@
-FROM python:3.14-slim
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /stats-service ./cmd/stats-service
 
-WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app ./app
-
-RUN useradd --create-home appuser
-USER appuser
-
-ENV PORT=8000
+FROM scratch
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /stats-service /stats-service
+USER 65532:65532
+ENV PORT=8000 OTEL_SERVICE_NAME=stats-service
 EXPOSE 8000
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port \"$PORT\""]
+HEALTHCHECK --interval=10s --timeout=3s CMD ["/stats-service", "healthcheck"]
+ENTRYPOINT ["/stats-service"]

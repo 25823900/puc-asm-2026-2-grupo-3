@@ -15,7 +15,7 @@ BFF — Node.js (Express)
   │              Kafka
   │                │ consome
   │                ▼
-  └──HTTP──► stats-service — Python (FastAPI) — PostgreSQL + Redis
+  └──HTTP──► stats-service — Go (net/http) — PostgreSQL + Redis
 
 Keycloak: autenticação (realm "encurta")
 OpenTelemetry + Grafana: logs, métricas e traces
@@ -56,6 +56,8 @@ O comando termina quando todos os containers estão saudáveis.
 | Interface do Kafka | http://localhost:8081 | |
 
 Não é preciso criar um `.env`. Se alguma porta já estiver em uso na sua máquina, copie o `.env.example` para `.env` e altere o valor.
+
+O nome do projeto Compose é `puc-asm-grupo3`, separado do ambiente `encurta`. Neste computador, o `.env` local usa API em http://localhost:3100, Keycloak em http://localhost:8180 e Kafka UI em http://localhost:8181 para permitir executar os dois projetos simultaneamente.
 
 Para parar e apagar os dados (banco e tópicos):
 
@@ -100,15 +102,12 @@ npm test
 stats-service (porta 8000), a partir de `stats-service/`:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload --port 8000
-ruff check app tests
-pytest
+go run ./cmd/stats-service
+go vet ./...
+go test -race -cover ./...
 ```
 
-No Linux e no macOS, a ativação do ambiente é `source .venv/bin/activate`.
+Requer Go 1.26. A migração conserva a tabela `click_events` do Python, cria agregados diários e não exige apagar volumes. Estrutura, testes e detalhes em [docs/stats-go.md](docs/stats-go.md).
 
 ## Construindo as imagens
 

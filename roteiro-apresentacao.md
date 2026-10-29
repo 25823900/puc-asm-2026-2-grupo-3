@@ -77,19 +77,19 @@ Apresentar o problema, a arquitetura C4, as decisões tecnológicas e um fluxo e
 
 ### Integrante 6 - Kafka e estatísticas (14:00-17:00)
 
-**Fala:** “Após uma resolução válida, o `link-service` publica `LinkClicked` no Kafka. O `stats-service`, escrito em Python com FastAPI, consome o evento e grava no database `stats`.”
+**Fala:** “Após uma resolução válida, o `link-service` publica `LinkClicked` no Kafka. O `stats-service`, escrito em Go com net/http, consome o evento e grava no database `stats`.”
 
 **Mostrar:** atualizar o painel ou abrir as estatísticas do link após o clique. Se o evento ainda estiver sendo processado, explicar o pequeno atraso e atualizar novamente.
 
 **Explicar:** Kafka desacopla o redirect da gravação de analytics; uma falha de publicação não deve impedir o redirecionamento. A entrega é pelo menos uma vez e `event_id` único evita contagem duplicada. Redis mantém o resumo por 30 segundos e é invalidado quando chega um evento novo.
 
-**Motivo das escolhas:** FastAPI fornece endpoints de consulta simples; Kafka deixa a análise fora do caminho crítico do redirect; banco separado estabelece propriedade do dado de analytics.
+**Motivo das escolhas:** net/http fornece os endpoints de consulta e Go permite processamento concorrente; Kafka deixa a análise fora do caminho crítico do redirect; banco separado estabelece propriedade do dado de analytics.
 
 **Transição:** “O fluxo funcional está completo; a última parte mostra como reproduzimos o ambiente e o que não estamos afirmando sobre produção.”
 
 ### Integrante 7 - execução, testes e trade-offs (17:00-20:00)
 
-**Fala:** “Docker Compose inicia frontend, serviços e dependências com health checks e migrações. Os testes usam containers com Node e Python fixados, então não exigem runtimes instalados na máquina.”
+**Fala:** “Docker Compose inicia frontend, serviços e dependências com health checks e migrações. Os testes usam containers com Node e Go fixados, então não exigem runtimes instalados na máquina.”
 
 **Mostrar:** `docker compose ps`, destacar frontend, BFF, serviços, PostgreSQL, Redis, Kafka e Keycloak. Mostrar os targets `test-frontend`, `test-bff`, `test-link-service` e `test-stats-service` no Compose de testes.
 
@@ -118,7 +118,7 @@ Não mostrar access tokens, senha do administrador ou dados pessoais. As contas 
 | `keycloak-js` + PKCE | Login do frontend | Padrão OIDC para cliente público; evita senha e client secret no código do browser. | Redirect URIs devem corresponder à origem e à porta configuradas. |
 | Nginx | Servir a SPA e encaminhar rotas | Runtime estático leve, uma origem para `/api` e `/r`, sem expor serviços internos ao browser. | Requer TLS e configuração de domínio em implantação real. |
 | Express | BFF e domínio de links | Reaproveita o stack Node do repositório e simplifica APIs HTTP orientadas a I/O. | BFF e `link-service` continuam deployables diferentes e devem manter contratos. |
-| FastAPI | Consulta e consumo de estatísticas | Mantém analytics isolado e oferece uma API pequena em Python. | Segundo runtime de aplicação; as imagens Docker padronizam a execução. |
+| Go / net/http | Consulta e consumo de estatísticas | Mantém analytics isolado, processa eventos em lotes e consulta agregados diários. | Binário estático em Docker; histórico preservado em click_events. |
 | PostgreSQL | Persistência durável | Transações e constraints garantem slug único, proprietário e deduplicação. | Uma instância com databases lógicos distintos não é banco distribuído nem HA. |
 | Kafka | Transporte assíncrono dos cliques | Remove gravação de analytics do caminho crítico de redirecionamento. | Estatísticas são eventualmente consistentes e podem atrasar alguns segundos. |
 | Redis | Cache de resolução/resumo | Reduz leituras repetidas sem substituir a fonte de verdade. | Cache precisa de TTL e invalidação; pode ficar desatualizado até o próximo processamento. |
