@@ -187,5 +187,47 @@ services:
           read -r status <&3 &&
           [[ "$$status" == *" 200 "* ]]
 
+  loki:
+    image: grafana/loki:3.5.1
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./infra/observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.10.2
+    profiles: ["observability"]
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    depends_on:
+      loki:
+        condition: service_started
+    volumes:
+      - ./infra/observability/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    profiles: ["observability"]
+    depends_on:
+      loki:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+
 volumes:
   postgres-data:
+  loki-data:
+  alloy-data:
+  grafana-data:

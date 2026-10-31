@@ -24,6 +24,8 @@ Keycloak: autenticação (realm "encurta")
 OpenTelemetry: suporte opcional no stats-service; coletor não incluído no Compose
 ```
 
+Para observabilidade local dos logs, o perfil opcional `observability` adiciona Grafana, Loki e Alloy.
+
 Os formatos de API, o evento, as portas e as variáveis de ambiente estão em [docs/contratos.md](docs/contratos.md).
 Diagramas C4, fluxos e justificativas estão na [visão geral](docs/visao-geral.md) e nas [decisões arquiteturais](docs/decisoes-arquiteturais.md). Veja também o [roteiro de apresentação](docs/roteiro-apresentacao.md).
 
@@ -65,6 +67,20 @@ Não é preciso criar um `.env`. Se alguma porta já estiver em uso na sua máqu
 Se alterar `FRONTEND_PORT`, ajuste `redirectUris` e `webOrigins` do client `encurta-frontend` em `infra/keycloak/encurta-realm.json` e recrie o Keycloak. `PUBLIC_BASE_URL` aponta para a origem do frontend para que links curtos passem pelo Nginx.
 
 O nome do projeto Compose é `puc-asm-grupo3`, separado do ambiente `encurta`. Neste computador, o `.env` local usa API em http://localhost:3100, Keycloak em http://localhost:8180 e Kafka UI em http://localhost:8181 para permitir executar os dois projetos simultaneamente.
+
+### Logs com Grafana, Loki e Alloy
+
+O perfil de observabilidade é opcional e não altera a subida padrão. Na raiz do projeto:
+
+```bash
+docker compose --profile observability up -d --wait
+```
+
+Abra http://localhost:3001 e entre com `admin`/`admin` por padrão (ou configure `GRAFANA_ADMIN_PASSWORD` no `.env`). No menu **Explore**, selecione a fonte **Loki** e consulte, por exemplo, `{service="bff"}` ou `{service="link-service"}`. O Alloy coleta os logs dos containers deste projeto; o Loki os mantém por sete dias. A porta de Grafana pode ser alterada com `GRAFANA_PORT`.
+
+Para parar apenas a observabilidade e manter a aplicação no ar, execute `docker compose --profile observability stop loki alloy grafana`. Para encerrar todo o stack, incluindo a observabilidade, use `docker compose --profile observability down`. Os dados ficam nos volumes `loki-data` e `grafana-data`; para removê-los junto dos dados do restante do ambiente, `docker compose --profile observability down -v`.
+
+O Alloy precisa acessar o socket do Docker para descobrir containers e ler seus logs. Esse acesso é sensível: use o perfil apenas em ambiente local confiável. Embora o socket esteja montado como somente leitura, isso não restringe as operações que a API do Docker permite. Grafana fica publicada apenas em `127.0.0.1`; Loki e Alloy não têm portas publicadas no host.
 
 Para parar e apagar os dados (banco e tópicos):
 
