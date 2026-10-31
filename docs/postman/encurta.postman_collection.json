@@ -8,7 +8,8 @@
     { "key": "baseUrl", "value": "http://localhost:3000" },
     { "key": "keycloakUrl", "value": "http://localhost:8080" },
     { "key": "tokenAlice", "value": "" },
-    { "key": "tokenBob", "value": "" }
+    { "key": "tokenBob", "value": "" },
+    { "key": "linkId", "value": "" }
   ],
   "item": [
     {
@@ -175,6 +176,123 @@
             "method": "GET",
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenBob}}", "type": "string" }] },
             "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Regra de dono do link",
+      "description": "Execute depois de obter os tokens. A alice cria um link; o bob não pode vê-lo nem removê-lo.",
+      "item": [
+        {
+          "name": "Alice cria link (espera 201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('linkId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenAlice}}", "type": "string" }] },
+            "body": { "mode": "raw", "raw": "{ \"targetUrl\": \"https://example.com\" }" },
+            "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        },
+        {
+          "name": "Bob não vê o link da alice na listagem",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('link da alice ausente', () => pm.expect(pm.response.json().map((l) => l.id)).to.not.include(pm.collectionVariables.get('linkId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenBob}}", "type": "string" }] },
+            "url": { "raw": "{{baseUrl}}/api/links", "host": ["{{baseUrl}}"], "path": ["api", "links"] }
+          }
+        },
+        {
+          "name": "Bob consulta estatísticas do link da alice (espera 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('código LINK_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('LINK_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenBob}}", "type": "string" }] },
+            "url": {
+              "raw": "{{baseUrl}}/api/links/{{linkId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "links", "{{linkId}}", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Bob remove o link da alice (espera 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('código LINK_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('LINK_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenBob}}", "type": "string" }] },
+            "url": {
+              "raw": "{{baseUrl}}/api/links/{{linkId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "links", "{{linkId}}"]
+            }
+          }
+        },
+        {
+          "name": "Alice remove o próprio link (espera 204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenAlice}}", "type": "string" }] },
+            "url": {
+              "raw": "{{baseUrl}}/api/links/{{linkId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "links", "{{linkId}}"]
+            }
           }
         }
       ]

@@ -21,10 +21,10 @@ BFF — Node.js (Express)
   └──HTTP──► stats-service — Go (net/http) — PostgreSQL + Redis
 
 Keycloak: autenticação (realm "encurta")
-OpenTelemetry: suporte opcional no stats-service; coletor não incluído no Compose
+OpenTelemetry: BFF, link-service e stats-service enviam traces, métricas e logs ao otel-lgtm (Grafana, Tempo, Prometheus, Loki)
 ```
 
-Para observabilidade local dos logs, o perfil opcional `observability` adiciona Grafana, Loki e Alloy.
+A observabilidade roda no container `otel-lgtm` (Grafana, Tempo, Prometheus, Loki e coletor OTLP), iniciado junto com o restante do Compose.
 
 Os formatos de API, o evento, as portas e as variáveis de ambiente estão em [docs/contratos.md](docs/contratos.md).
 Diagramas C4, fluxos e justificativas estão na [visão geral](docs/visao-geral.md) e nas [decisões arquiteturais](docs/decisoes-arquiteturais.md). Veja também o [roteiro de apresentação](docs/roteiro-apresentacao.md).
@@ -68,19 +68,16 @@ Se alterar `FRONTEND_PORT`, ajuste `redirectUris` e `webOrigins` do client `encu
 
 O nome do projeto Compose é `puc-asm-grupo3`, separado do ambiente `encurta`. Neste computador, o `.env` local usa API em http://localhost:3100, Keycloak em http://localhost:8180 e Kafka UI em http://localhost:8181 para permitir executar os dois projetos simultaneamente.
 
-### Logs com Grafana, Loki e Alloy
+### Observabilidade com OpenTelemetry e Grafana
 
-O perfil de observabilidade é opcional e não altera a subida padrão. Na raiz do projeto:
+O container `otel-lgtm` sobe com o Compose padrão e recebe traces, métricas e logs por OTLP/HTTP (`http://otel-lgtm:4318`) do BFF, do `link-service` e do `stats-service`. Abra http://localhost:3001 e entre com `admin`/`admin` por padrão (ou configure `GRAFANA_ADMIN_PASSWORD` no `.env`). A porta pode ser alterada com `GRAFANA_PORT`.
 
-```bash
-docker compose --profile observability up -d --wait
-```
+- **Dashboard:** em **Dashboards**, abra **EncurtadorURL**. Mostra cliques publicados e gravados, falhas de publicação, taxa de acerto e volume do cache (Redis do `link-service` e do `stats-service`) e os logs dos três serviços.
+- **Logs:** os serviços escrevem JSON no stdout com `trace_id` e `span_id`. No **Explore**, fonte **Loki**, consulte `{service_name="bff"}`, `{service_name="link-service"}` ou `{service_name="stats-service"}`.
+- **Traces:** no **Explore**, fonte **Tempo**, busque por `service.name`. Um `trace_id` visto em um log leva ao trace distribuído BFF → link-service → Kafka → stats-service.
+- **Métricas:** `encurta_cache_requests_total` (rótulos `cache` e `result`), `encurta_link_clicks_total` (rótulo `outcome`: `published` ou `failed`) e `encurta_stats_clicks_processed_total`, além das métricas HTTP e de runtime dos SDKs.
 
-Abra http://localhost:3001 e entre com `admin`/`admin` por padrão (ou configure `GRAFANA_ADMIN_PASSWORD` no `.env`). No menu **Explore**, selecione a fonte **Loki** e consulte, por exemplo, `{service="bff"}` ou `{service="link-service"}`. O Alloy coleta os logs dos containers deste projeto; o Loki os mantém por sete dias. A porta de Grafana pode ser alterada com `GRAFANA_PORT`.
-
-Para parar apenas a observabilidade e manter a aplicação no ar, execute `docker compose --profile observability stop loki alloy grafana`. Para encerrar todo o stack, incluindo a observabilidade, use `docker compose --profile observability down`. Os dados ficam nos volumes `loki-data` e `grafana-data`; para removê-los junto dos dados do restante do ambiente, `docker compose --profile observability down -v`.
-
-O Alloy precisa acessar o socket do Docker para descobrir containers e ler seus logs. Esse acesso é sensível: use o perfil apenas em ambiente local confiável. Embora o socket esteja montado como somente leitura, isso não restringe as operações que a API do Docker permite. Grafana fica publicada apenas em `127.0.0.1`; Loki e Alloy não têm portas publicadas no host.
+Dashboard e provisionamento ficam em `infra/observability/`. Os dados ficam no volume `lgtm-data` e são removidos com `docker compose down -v`. Grafana é publicado apenas em `127.0.0.1`; as portas OTLP não são publicadas no host. Sem `OTEL_EXPORTER_OTLP_ENDPOINT`, os serviços funcionam normalmente e não exportam telemetria.
 
 Para parar e apagar os dados (banco e tópicos):
 

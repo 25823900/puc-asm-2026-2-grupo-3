@@ -7,12 +7,17 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --import ./src/telemetry.js src/server.js",
+    "dev": "node --watch --import ./src/telemetry.js src/server.js",
     "lint": "eslint .",
-    "test": "node --test"
+    "test": "LOG_LEVEL=silent node --test"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/instrumentation-express": "^0.72.0",
+    "@opentelemetry/instrumentation-http": "^0.300.0",
+    "@opentelemetry/instrumentation-undici": "^0.34.0",
+    "@opentelemetry/sdk-node": "^0.300.0",
     "express": "^5.2.1",
     "jose": "^6.2.13"
   },

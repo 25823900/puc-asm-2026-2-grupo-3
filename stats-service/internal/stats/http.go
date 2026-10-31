@@ -98,6 +98,7 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	cached, _, cacheErr := a.cache.Get(ctx, id)
 	if cacheErr == nil && len(cached) != 0 && json.Valid(cached) {
+		recordCache(ctx, "hit")
 		w.Header().Set("X-Cache", "HIT")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(cached)
@@ -135,6 +136,7 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) {
 			apiError(w, 500, "INTERNAL_ERROR", "Erro interno")
 			return
 		}
+		recordCache(ctx, "miss")
 		w.Header().Set("X-Cache", "MISS")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(response.Val.([]byte))

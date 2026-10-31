@@ -13,6 +13,12 @@ x-keycloak-env: &keycloak-env
   KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/encurta
   KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/encurta/protocol/openid-connect/certs
 
+# Telemetria OTLP/HTTP enviada ao otel-lgtm pela rede interna.
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_METRIC_EXPORT_INTERVAL: "10000"
+
 services:
   bff:
     build: ./bff
@@ -24,7 +30,8 @@ services:
       keycloak:
         condition: service_healthy
     environment:
-      <<: *keycloak-env
+      <<: [*keycloak-env, *otel-env]
+      OTEL_SERVICE_NAME: bff
       PORT: 3000
       PUBLIC_BASE_URL: http://localhost:${FRONTEND_PORT:-5173}
       LINK_SERVICE_URL: http://link-service:3010
@@ -65,7 +72,8 @@ services:
       keycloak:
         condition: service_healthy
     environment:
-      <<: *keycloak-env
+      <<: [*keycloak-env, *otel-env]
+      OTEL_SERVICE_NAME: link-service
       PORT: 3010
       DATABASE_URL: postgres://links_user:${LINKS_DB_PASSWORD:-links_pass}@postgres:5432/links
       REDIS_URL: redis://redis:6379
@@ -85,6 +93,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: stats-service
       PORT: 8000
       DATABASE_URL: postgresql://stats_user:${STATS_DB_PASSWORD:-stats_pass}@postgres:5432/stats
       REDIS_URL: redis://redis:6379
@@ -187,47 +197,21 @@ services:
           read -r status <&3 &&
           [[ "$$status" == *" 200 "* ]]
 
-  loki:
-    image: grafana/loki:3.5.1
-    profiles: ["observability"]
-    command: ["-config.file=/etc/loki/config.yml"]
-    volumes:
-      - ./infra/observability/loki-config.yml:/etc/loki/config.yml:ro
-      - loki-data:/loki
-
-  alloy:
-    image: grafana/alloy:v1.10.2
-    profiles: ["observability"]
-    command:
-      - run
-      - --server.http.listen-addr=0.0.0.0:12345
-      - --storage.path=/var/lib/alloy/data
-      - /etc/alloy/config.alloy
-    depends_on:
-      loki:
-        condition: service_started
-    volumes:
-      - ./infra/observability/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - alloy-data:/var/lib/alloy/data
-
-  grafana:
-    image: grafana/grafana:12.2.1
-    profiles: ["observability"]
-    depends_on:
-      loki:
-        condition: service_started
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.39.0
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
     ports:
       - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./infra/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./infra/observability/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/encurta.yaml:ro
+      - ./infra/observability/encurta-dashboard.json:/otel-lgtm/encurta-dashboard.json:ro
+      - lgtm-data:/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "test -f /tmp/ready"]
 
 volumes:
   postgres-data:
-  loki-data:
-  alloy-data:
-  grafana-data:
+  lgtm-data:

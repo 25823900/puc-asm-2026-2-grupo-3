@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import express from 'express';
 
 import { createAuth } from './auth.js';
+import { createLogger, requestLogger } from './logger.js';
+import { recordCacheRequest, recordClick } from './metrics.js';
 import { createSlug } from './slug.js';
 
 const SERVICE_NAME = 'link-service';
@@ -12,8 +14,11 @@ export function createApp({
   cache,
   publisher = { publish: async () => {} },
   auth = createAuth(),
+  logger = createLogger(SERVICE_NAME),
 } = {}) {
   const app = express();
+
+  app.use(requestLogger(logger));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: SERVICE_NAME });
@@ -79,6 +84,7 @@ export function createApp({
 
       if (!link) return notFound(res);
       res.set('X-Cache', cached ? 'HIT' : 'MISS');
+      recordCacheRequest(cached ? 'hit' : 'miss');
       if (!cached) await cache.setEx(key, 3600, JSON.stringify(link));
 
       try {
@@ -88,8 +94,10 @@ export function createApp({
           slug: link.slug,
           clickedAt: new Date().toISOString(),
         });
+        recordClick('published');
       } catch (error) {
-        console.error('Failed to publish LinkClicked event', error);
+        recordClick('failed');
+        logger.error('Failed to publish LinkClicked event', { error, 'link.id': link.id });
       }
 
       return res.json({ id: link.id, slug: link.slug, targetUrl: link.targetUrl });
@@ -105,7 +113,7 @@ export function createApp({
         error: { code: 'VALIDATION_ERROR', message: 'JSON inválido' },
       });
     }
-    console.error('link-service request failed', error);
+    logger.error('link-service request failed', { error });
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: 'Falha interna' },
     });

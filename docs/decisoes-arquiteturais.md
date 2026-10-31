@@ -91,4 +91,4 @@ sequenceDiagram
 - Usuários e senhas do realm são fixtures locais; não são credenciais para produção.
 - Keycloak inicia em `start-dev`, Kafka usa um broker e PostgreSQL usa uma instância. Esses defaults simplificam apresentação e desenvolvimento, não segurança/alta disponibilidade de produção.
 - O frontend usa HTTP local. Em implantação real, configure HTTPS, redirect URIs/domínios apropriados, secrets e política de backup.
-- O serviço Go oferece exportação opcional OpenTelemetry, mas o Compose não inclui coletor/Grafana nem configura exportação.
+- Existe um container `otel-lgtm` com Grafana, Tempo, Prometheus e Loki; BFF, `link-service` e `stats-service` exportam traces, métricas e logs por OTLP. Credenciais do Grafana (`admin`/`admin`) são de demonstração.

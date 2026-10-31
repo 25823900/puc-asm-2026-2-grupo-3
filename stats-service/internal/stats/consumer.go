@@ -75,6 +75,7 @@ func processBatch(ctx context.Context, repo Repository, cache SummaryCache, mess
 		}
 		return err
 	}
+	clicksProcessed.Add(writeCtx, int64(len(clicks)))
 	// Invalida também em replay: corrige crash entre o COMMIT SQL e Redis.
 	if err := cache.Invalidate(writeCtx, ids); err != nil {
 		slog.WarnContext(writeCtx, "Falha ao invalidar cache; TTL limita a defasagem", "error", err)

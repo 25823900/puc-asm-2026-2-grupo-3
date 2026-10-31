@@ -1,6 +1,7 @@
 import express from 'express';
 
 import { createAuth } from './auth.js';
+import { createLogger, requestLogger } from './logger.js';
 
 const SERVICE_NAME = 'bff';
 
@@ -10,8 +11,11 @@ export function createApp({
   publicBaseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:3000',
   fetchImpl = fetch,
   auth = createAuth(),
+  logger = createLogger(SERVICE_NAME),
 } = {}) {
   const app = express();
+
+  app.use(requestLogger(logger));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: SERVICE_NAME });
@@ -41,7 +45,8 @@ export function createApp({
       }
 
       return res.redirect(302, target.href);
-    } catch {
+    } catch (error) {
+      logger.error('Failed to resolve link redirect', { error });
       return res.status(503).json({
         error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Serviço indisponível' },
       });
@@ -67,7 +72,7 @@ export function createApp({
       const link = await upstream.json();
       return res.status(201).json(toPublicLink(link, publicBaseUrl));
     } catch (error) {
-      console.error('Failed to create link through link-service', error);
+      logger.error('Failed to create link through link-service', { error });
       return upstreamUnavailable(res);
     }
   });
@@ -90,10 +95,12 @@ export function createApp({
             const summaries = await statsResponse.json();
             totals = new Map(summaries.map(({ linkId, totalClicks }) => [linkId, totalClicks]));
           } else {
-            console.error(`stats-service returned ${statsResponse.status} for link summaries`);
+            logger.warn('stats-service returned an error for link summaries', {
+              'http.response.status_code': statsResponse.status,
+            });
           }
         } catch (error) {
-          console.error('Failed to retrieve click summaries from stats-service', error);
+          logger.error('Failed to retrieve click summaries from stats-service', { error });
         }
       }
 
@@ -104,7 +111,7 @@ export function createApp({
         })),
       );
     } catch (error) {
-      console.error('Failed to list links through link-service', error);
+      logger.error('Failed to list links through link-service', { error });
       return upstreamUnavailable(res);
     }
   });
@@ -125,7 +132,7 @@ export function createApp({
       if (cacheStatus) res.set('X-Cache', cacheStatus);
       return res.json(body);
     } catch (error) {
-      console.error('Failed to retrieve link statistics', error);
+      logger.error('Failed to retrieve link statistics', { error });
       return upstreamUnavailable(res);
     }
   });
@@ -139,7 +146,7 @@ export function createApp({
       if (!upstream.ok) return forwardError(upstream, res);
       return res.status(204).end();
     } catch (error) {
-      console.error('Failed to delete link through link-service', error);
+      logger.error('Failed to delete link through link-service', { error });
       return upstreamUnavailable(res);
     }
   });
@@ -151,7 +158,7 @@ export function createApp({
         error: { code: 'VALIDATION_ERROR', message: 'JSON inválido' },
       });
     }
-    console.error('BFF request failed', error);
+    logger.error('BFF request failed', { error });
     return upstreamUnavailable(res);
   });
 

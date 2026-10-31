@@ -95,7 +95,7 @@ Apresentar o problema, a arquitetura C4, as decisões tecnológicas e um fluxo e
 
 **Motivo das escolhas:** Compose reduz diferenças entre máquinas; targets de teste e GitHub Actions reproduzem as verificações em containers. O Nginx é não privilegiado no runtime do frontend.
 
-**Limites a declarar:** o ambiente usa credenciais de demonstração, Keycloak em `start-dev`, um broker e uma instância PostgreSQL. Não demonstra alta disponibilidade, TLS ou topologia distribuída de banco. OpenTelemetry/Grafana não estão integrados.
+**Limites a declarar:** o ambiente usa credenciais de demonstração, Keycloak em `start-dev`, um broker e uma instância PostgreSQL. Não demonstra alta disponibilidade, TLS ou topologia distribuída de banco. A observabilidade (otel-lgtm) é de demonstração, sem alertas.
 
 **Encerramento:** “A separação permite que o redirect continue leve e que a análise evolua de forma independente. O preço é a consistência eventual das estatísticas e mais containers para operar.”
 

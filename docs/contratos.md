@@ -19,11 +19,12 @@ As rotas descritas neste documento estão implementadas: o frontend Vue usa OIDC
 | Kafka | `kafka` | 9092 | não publicada |
 | Interface do Kafka | `kafka-ui` | 8080 | 8081 |
 | Keycloak | `keycloak` | 8080 | 8080 |
+| Grafana e backend OTLP | `otel-lgtm` | 3000 (Grafana), 4318 (OTLP/HTTP) | `127.0.0.1:3001` (somente Grafana) |
 
-As portas do frontend, do BFF, do Keycloak e da interface do Kafka no host podem ser trocadas pelo arquivo `.env` (ver `.env.example`).
+As portas do frontend, do BFF, do Keycloak, do Grafana e da interface do Kafka no host podem ser trocadas pelo arquivo `.env` (ver `.env.example`).
 Se `FRONTEND_PORT` mudar, atualize `redirectUris` e `webOrigins` do client `encurta-frontend` no realm e recrie o Keycloak.
 
-O Nginx encaminha `/api/**`, `/r/**` e `/health` ao BFF, mantendo a mesma origem no navegador. Os serviços internos não são publicados no Compose padrão. O serviço Go tem suporte opcional a OpenTelemetry, mas nenhum coletor/Grafana está incluído no Compose atual.
+O Nginx encaminha `/api/**`, `/r/**` e `/health` ao BFF, mantendo a mesma origem no navegador. Os serviços internos não são publicados no Compose padrão. BFF, `link-service` e `stats-service` exportam traces, métricas e logs por OTLP/HTTP ao `otel-lgtm`; o Grafana dele é publicado somente em `127.0.0.1:${GRAFANA_PORT:-3001}`.
 
 Com o `docker-compose.dev.yml`, as portas "não publicadas" ficam acessíveis no host, só em `127.0.0.1`, com o mesmo número. A exceção é o Kafka, que do host atende em `localhost:29092`.
 
@@ -241,7 +242,34 @@ stats-service:
 | `KAFKA_TOPIC_LINK_CLICKED` | `link.clicked` |
 | `KAFKA_GROUP_ID` | `stats-service` |
 
-O serviço Go aceita opcionalmente `OTEL_EXPORTER_OTLP_ENDPOINT` e `OTEL_SERVICE_NAME`. O Compose não configura coletor. Detalhes de migração, agregados e cache versionado estão em [stats-go.md](./stats-go.md).
+O `stats-service` também usa as variáveis de telemetria abaixo. Detalhes de migração, agregados e cache versionado estão em [stats-go.md](./stats-go.md).
+
+Telemetria (BFF, `link-service` e `stats-service`):
+
+| Variável | Exemplo |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-lgtm:4318` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` |
+| `OTEL_SERVICE_NAME` | `bff`, `link-service` ou `stats-service` |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `10000` |
+| `LOG_LEVEL` | `info` (`debug`, `warn`, `error` ou `silent`) |
+
+Sem `OTEL_EXPORTER_OTLP_ENDPOINT` nenhum serviço exporta telemetria.
+
+## Observabilidade
+
+- **Backend:** container `otel-lgtm` (Grafana, Tempo, Prometheus, Loki e coletor OTLP). O Compose o inicia por padrão e só publica o Grafana, em `127.0.0.1:${GRAFANA_PORT:-3001}`.
+- **Traces:** o contexto W3C `traceparent` é propagado nas chamadas HTTP BFF → `link-service` e nos headers da mensagem `LinkClicked`, ligando o consumidor do `stats-service` ao trace do redirecionamento.
+- **Logs:** uma linha JSON por evento no stdout, com `timestamp`, `level`, `service`, `message` e, dentro de um span, `trace_id` e `span_id`. Os mesmos registros seguem por OTLP.
+- **Métricas de negócio:**
+
+| Métrica (Prometheus) | Serviço | Rótulos |
+|---|---|---|
+| `encurta_cache_requests_total` | `link-service` (`cache="link-slug"`) e `stats-service` (`cache="stats-summary"`) | `cache`, `result` (`hit` ou `miss`) |
+| `encurta_link_clicks_total` | `link-service` | `outcome` (`published` ou `failed`) |
+| `encurta_stats_clicks_processed_total` | `stats-service` | nenhum |
+
+- **Dashboard:** `infra/observability/encurta-dashboard.json`, provisionado como **EncurtadorURL**.
 
 ## Persistência
 

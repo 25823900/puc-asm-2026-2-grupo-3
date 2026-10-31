@@ -2,9 +2,11 @@ import { Kafka } from 'kafkajs';
 import pg from 'pg';
 import { createClient } from 'redis';
 
+import { createLogger } from './logger.js';
 import { createLinkRepository, initializeDatabase } from './repository.js';
 
 const { Pool } = pg;
+const logger = createLogger('link-service');
 
 export async function createDependencies(env = process.env) {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
@@ -14,7 +16,7 @@ export async function createDependencies(env = process.env) {
 
   try {
     await initializeDatabase(pool);
-    cache.on('error', (error) => console.error('Redis client error', error));
+    cache.on('error', (error) => logger.error('Redis client error', { error }));
     await cache.connect();
     await producer.connect();
   } catch (error) {

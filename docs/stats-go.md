@@ -38,7 +38,7 @@ Consultas usam os contadores diários, sem varrer todos os cliques. O consumidor
 
 pgxpool mantém até 16 conexões. Redis tem prazos de 100 ms e retries desativados, com fallback para PostgreSQL. Singleflight compartilha consultas simultâneas do mesmo link. Scripts Lua versionam invalidações para impedir que uma consulta concorrente republique cache obsoleto.
 
-Docker compila um binário estático em múltiplos estágios. A imagem final scratch roda sem privilégios e executa /stats-service healthcheck. SDKs de traces, métricas e logs OTLP são ativados quando OTEL_EXPORTER_OTLP_ENDPOINT está definido; o Compose deste repositório não inclui um coletor Grafana.
+Docker compila um binário estático em múltiplos estágios. A imagem final scratch roda sem privilégios e executa /stats-service healthcheck. SDKs de traces, métricas e logs OTLP são ativados quando OTEL_EXPORTER_OTLP_ENDPOINT está definido; o Compose deste repositório aponta para o container otel-lgtm. O serviço registra encurta_cache_requests_total (cache do resumo) e encurta_stats_clicks_processed_total.
 
 ## Executar
 
